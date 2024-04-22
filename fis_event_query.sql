@@ -80,7 +80,9 @@ WITH
 --
 -- ADD NEXT ELIGIBLE DATE --
 --		
-SELECT FIS_ID
+,	
+	next_eligible AS
+	(SELECT FIS_ID
 	   , EID
 	   , FACULTY_SABBATICAL_NUMBER
 	   , EFFECTIVE_MONTH
@@ -111,8 +113,10 @@ SELECT FIS_ID
 	, EVENT_JOBCLASS
 	, EVENT_DESC
 	, LATEST_SABBATICAL
-FROM last_sabbatical	
-	;
+FROM last_sabbatical)	
+	
+
+;
 
 
 		
