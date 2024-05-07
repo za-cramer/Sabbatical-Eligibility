@@ -4,7 +4,6 @@
 - Purpose: Extracts first and most recent sabbatical events from FIS EVENT table
 - To Do:
 	[x] Caputure Event AY
-
 */
 
 WITH 
@@ -53,6 +52,15 @@ WITH
 					, ' - ')
 					,CAST((EXTRACT(YEAR FROM EVENT_BEGIN_DATE) + 1)AS VARCHAR(10)) )
 			END AS AY
+		, CASE 
+			WHEN EXTRACT(MONTH FROM EVENT_BEGIN_DATE)
+				BETWEEN 1 AND 7 
+				THEN 
+				/* Academic Year Fall is prior calendar year if Spring Term */
+					(EXTRACT(YEAR FROM EVENT_BEGIN_DATE) - 1)
+				/* Academic Year Fall is current calendar year */
+			ELSE 	(EXTRACT(YEAR FROM EVENT_BEGIN_DATE))
+		  END AS AY_FALL
 		, EVENT_BEGIN_DATE
 		, EVENT_END_DATE
 		, POSITION_NUMBER
@@ -73,6 +81,7 @@ WITH
 				, EXPIRE_MONTH
 				, EXPIRE_YEAR
 				, AY
+				, AY_FALL
 				, EVENT_BEGIN_DATE
 				, EVENT_END_DATE
 				, POSITION_NUMBER
@@ -113,6 +122,7 @@ WITH
 					, ' - ')
 					,CAST((EXTRACT(YEAR FROM EVENT_BEGIN_DATE) + 1)+6 AS VARCHAR(10)) )
 		END AS AY
+	, NULL AS AY_FALL
 	, EVENT_BEGIN_DATE
 	, EVENT_END_DATE
 	, POSITION_NUMBER
@@ -131,8 +141,8 @@ FROM last_sabbatical
 			OVER(PARTITION BY FIS_ID ORDER BY FIS_ID, EVENT_BEGIN_DATE) AS Record_Number
 		, EXTRACT(MONTH FROM EVENT_BEGIN_DATE) AS EFFECTIVE_MONTH
 		, EXTRACT(YEAR FROM EVENT_BEGIN_DATE)  AS EFFECTIVE_YEAR
-		, NULL AS EXPIRE_MONTH
-		, NULL AS EXPIRE_YEAR
+		, EXTRACT(MONTH FROM EVENT_END_DATE)  AS EXPIRE_MONTH
+		, EXTRACT(YEAR FROM EVENT_END_DATE)  AS EXPIRE_YEAR
 		, CASE 
 			WHEN EXTRACT(MONTH FROM EVENT_BEGIN_DATE)
 				BETWEEN 1 AND 7 
@@ -148,6 +158,15 @@ FROM last_sabbatical
 					, ' - ')
 					,CAST((EXTRACT(YEAR FROM EVENT_BEGIN_DATE) + 1)AS VARCHAR(10)) )
 			END AS AY
+		, CASE 
+			WHEN EXTRACT(MONTH FROM EVENT_BEGIN_DATE)
+				BETWEEN 1 AND 7 
+				THEN 
+				/* Academic Year Fall is prior calendar year if Spring Term */
+					(EXTRACT(YEAR FROM EVENT_BEGIN_DATE) - 1)
+				/* Academic Year Fall is current calendar year */
+			ELSE 	(EXTRACT(YEAR FROM EVENT_BEGIN_DATE))
+		  END AS AY_FALL
 		, CASE 
 			WHEN EXTRACT(MONTH FROM EVENT_BEGIN_DATE)
 				BETWEEN 1 AND 7 
@@ -175,11 +194,11 @@ FROM last_sabbatical
 			(
 			SELECT DISTINCT FIS_ID FROM fis_extract WHERE EVENT_DESC = 'Sabbatical'
 			)
-			AND 
+		AND 
 			EVENT_DESC = 'Appointment'
-			AND 
+		AND 
 			EVENT_JOBCLASS IN ('1100', '1101', '1102', '1103')
-			ORDER BY  EID, EVENT_BEGIN_DATE)
+		ORDER BY  EID, EVENT_BEGIN_DATE)
 , 	no_sabbatical AS
 	(
 		SELECT * FROM no_sabbatical_all
@@ -195,6 +214,7 @@ FROM last_sabbatical
 	, LAST.EXPIRE_MONTH
 	, LAST.EXPIRE_YEAR
 	, LAST.AY
+	, LAST.AY_FALL
 	, NEXT.AY AS NEXT_ELIGIBLE_SABBATICAL
 	, LAST.EVENT_BEGIN_DATE
 	, LAST.EVENT_END_DATE
@@ -208,9 +228,11 @@ FROM last_sabbatical LAST
 	ON LAST.fis_id = NEXT.FIS_ID
 ORDER BY LAST.EID
 	)
-SELECT * FROM sabbatical_final	
+SELECT *
+FROM sabbatical_final	
 UNION
-SELECT * FROM no_sabbatical
+SELECT 	*
+FROM no_sabbatical
 ;
 
 		
