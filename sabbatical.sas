@@ -180,7 +180,7 @@ proc sql;
 QUIT;
 
 proc sql;
-	create table active_leave_summary as
+	create table lib.active_leave_summary as
 	select distinct 
 	EID,
 	EMPLOYEE_NAME,
@@ -206,8 +206,17 @@ END AS ROUNDED_ANNUAL_RATE,
 QUIT;
 
 proc sql; 
-	create table active_sabbatical_final as
-	select a.EID,
+	create table inst&year. as
+	select distinct 
+				EID,
+				InstAny
+			 from edb.pers&year.;
+quit;
+
+proc sql; 
+	create table lib.active_sabbatical_final as
+	select distinct 
+		   a.EID,
 		   a.FIS_ID,
 		   a.EMPLOYEE_NAME,
 		   l.Accrued_Leave,
@@ -215,7 +224,8 @@ proc sql;
 		   a.DeptName,
 		   div.CollegeDesc,
 		   div.ASDiv,
-		   div.DivisionDesc,	
+		   div.DivisionDesc,
+		   inst.InstAny,
 		   a.*
 	from active_sabbatical a
 		left join active_leave_summary l
@@ -225,20 +235,20 @@ proc sql;
 				DeptID,
 				ASDiv,
 				CollegeDesc,
-				DivisionDesc
+				DivisionDesc,
+				InstAny
 			 from edb.pers&year.) div
-		on a.DeptID = div.DeptID;
+		on a.DeptID = div.DeptID
+		left join inst&year. inst
+			on a.EID = inst.EID;
 quit;
-
-proc sql; 
-	select sum(accrued_leave) from active_sabbatical_final;
-quit;
-			
-proc contents data = active_sabbatical_final; run;
-proc contents data = active_sabbatical; run;
 
 ** Export to excel to check **;
-%xlsexport(L:\IR\facstaff\OFA\Sabbatical Report\sabbatical_roster.xlsx,active_sabbatical_final,sabbatical);
-%xlsexport(L:\IR\facstaff\OFA\Sabbatical Report\sabbatical_roster.xlsx,active_leave_summary,active_leave_summary);
+%xlsexport(L:\IR\facstaff\OFA\Sabbatical Report\sabbatical_roster.xlsx,lib.active_sabbatical_final,sabbatical);
+%xlsexport(L:\IR\facstaff\OFA\Sabbatical Report\sabbatical_roster.xlsx,lib.active_leave_summary,active_leave_summary);
 %xlsexport(L:\IR\facstaff\OFA\Sabbatical Report\sabbatical_roster.xlsx,active_leave,full_leave_roster);
 
+/* Break out sub-populations for review:
+	1. A&S
+	2. Engineering
+	3. RIO 								*/
