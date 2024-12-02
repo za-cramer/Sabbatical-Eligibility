@@ -3,6 +3,7 @@
 ***************************************;
 %let year = 2023;
 %let admin = %str('2214','1446','2209','2208','2206','2210','2205','2207');
+%fisdb;
 /*  
  	1433 Faculty Director - Removed for Sabbatical Eligibility per Cholpon communication 5.6 to ZC and RS
  	1446 Director-Institute
@@ -14,8 +15,7 @@
  	2210 Assoc Vice Chancellor
  	2214 Dean
 */
-
-%put <<<< snapyear = &year. || first_year = &first_year.;
+%put <<<< snapyear = &year.;
 libname lib 'L:\IR\facstaff\OFA\Sabbatical Report';
 /* Import FIS Sabbatical Events query found L:\IR\facstaff\OFA\Sabbatical Report\sabbatical_eligibility.sql */
 proc import datafile="L:\IR\facstaff\OFA\Sabbatical Report\fis_sabbatical.csv"
@@ -64,7 +64,7 @@ proc sql;
 		   fis_id 
 	from fisdb.fis_person;
 quit;
-
+%ciwdb;
 ************* BEGIN ANALYSIS *********************;
 * Employed Faculty 
 * Remove Retirees, retain active TTT;
@@ -78,6 +78,7 @@ proc sql;
 		   tenure.DeptName,
 		   pers.admin as Current_Admin,
 		   sab.SABBATICAL as Prior_Sabbatical_Flag,
+		   sab.EVENT_BEGIN_DATE,
            sab.ELIGIBLE_DATE,
            sab.ELIGIBLE_APPLY_DATE,
 		   sab.EFFECTIVE_MONTH,
@@ -102,7 +103,8 @@ proc sql;
 		   	when (&year. - sab.AY_FALL)  >= 6  /* Logic says if they were hired, or accumulated service, of 6 years or greater they are eligible */
 				 then 1
 				 else 0
-			end as ELIGIBLE_IN_CURRENT_AY
+			end as ELIGIBLE_IN_CURRENT_AY,
+			sab.PRE_TENURE
 	from fis_sabbatical sab /* Imported Sabbatical Roster */
 		left join ciwdb.HRMS_PERSONAL_TBL hr /* Join HR Name */
 			on sab.EID = hr.EMPLOYEE_ID
@@ -220,15 +222,35 @@ proc sql;
 		   a.FIS_ID,
 		   a.EMPLOYEE_NAME,
 		   l.Accrued_Leave,
+		   rank.JobTitle,
+		   rank.JobCode,
 		   a.DeptID,
-		   a.DeptName,
+		   PropCase(a.DeptName) as DeptName,
 		   div.CollegeDesc,
 		   div.ASDiv,
 		   div.DivisionDesc,
 		   inst.InstAny,
-		   a.*
+		   a.*,
+		   case 
+				when month(datepart(a.EVENT_BEGIN_DATE))
+					between 1 and 6 then 'SPRING'
+				when month(datepart(a.EVENT_BEGIN_DATE))
+					between 6 and 13 then 'FALL'
+			end as Last_Sabbatical_Semester,
+		   case 
+				when month(datepart(a.EVENT_BEGIN_DATE))
+					between 1 and 6 then 'SPRING'
+				when month(datepart(a.EVENT_BEGIN_DATE))
+					between 6 and 13 then 'FALL'
+			end as Next_Sabbatical_Semester,
+			case
+            when ELIGIBLE_APPLY_DATE < dhms("01NOV&year."d, 0, 0, 0)
+				then 1
+				else 0
+			end as Eligible_to_apply_flag,
+			a.PRE_TENURE
 	from active_sabbatical a
-		left join active_leave_summary l
+		left join lib.active_leave_summary l
 			on a.EID = l.EID
 		left join
 			(select distinct 
@@ -240,15 +262,27 @@ proc sql;
 			 from edb.pers&year.) div
 		on a.DeptID = div.DeptID
 		left join inst&year. inst
-			on a.EID = inst.EID;
+			on a.EID = inst.EID
+		left join 
+			(select distinct EID, JobCode, JobTitle, Order from edb.appts&year. where jobcode in ('1100','1101','1102','1103') group by EID having Order = min(order)) rank
+		on a.EID = rank.EID;
 quit;
+
+* CHECK FOR DUPLICATES *;
+proc sql; 
+	select distinct *, count(EID) as count from lib.active_sabbatical_final group by EID having count(EID) > 1; quit;
+
+* REMOVE DUPLICATES HERE *;
+/*proc sql;
+    delete from lib.active_sabbatical_final
+    where EID = '129468' and JobTitle = 'PROFESSOR';
+quit;*/
+
+* Re-Check OUTPUT *;
+proc sql; 
+	select distinct *, count(EID) as count from lib.active_sabbatical_final group by EID having count(EID) > 1; quit;
 
 ** Export to excel to check **;
 %xlsexport(L:\IR\facstaff\OFA\Sabbatical Report\sabbatical_roster.xlsx,lib.active_sabbatical_final,sabbatical);
 %xlsexport(L:\IR\facstaff\OFA\Sabbatical Report\sabbatical_roster.xlsx,lib.active_leave_summary,active_leave_summary);
 %xlsexport(L:\IR\facstaff\OFA\Sabbatical Report\sabbatical_roster.xlsx,active_leave,full_leave_roster);
-
-/* Break out sub-populations for review:
-	1. A&S
-	2. Engineering
-	3. RIO 								*/
